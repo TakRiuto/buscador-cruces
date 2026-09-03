@@ -6,58 +6,88 @@
     <title>Validador de Cruces Inteligente</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
-</head>
-<body class="bg-gray-100 p-8 font-sans">
-
-    <div class="max-w-5xl mx-auto bg-white p-8 rounded-lg shadow-lg">
-        <h1 class="text-3xl font-bold mb-2 text-indigo-800">Validador Geográfico</h1>
+    <style>
+        /* Importamos Outfit como fallback visual de Google Sans */
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
         
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+        body {
+            /* Prioriza Google Sans/Product Sans, si no, usa Outfit */
+            font-family: 'Google Sans', 'Product Sans', 'Outfit', sans-serif;
+            background-color: #0f172a; /* slate-900 */
+            color: #e2e8f0; /* slate-200 */
+        }
+
+        /* Scrollbar personalizado para tema oscuro */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b; /* slate-800 */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569; /* slate-600 */
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b; /* slate-500 */
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 antialiased">
+
+    <div class="max-w-5xl mx-auto bg-slate-800 p-6 md:p-10 rounded-2xl shadow-2xl border border-slate-700/50">
+        <h1 class="text-3xl font-bold mb-1 text-white tracking-tight">Validador Geográfico</h1>
+        <p class="text-slate-400 text-sm mb-8">Búsqueda y cruce de datos inteligente</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             
-            <!-- OPCIÓN 1: Pegado Rápido -->
-            <div class="bg-indigo-50 p-6 rounded-lg border border-indigo-100">
-                <h2 class="font-bold text-lg text-indigo-700 mb-2">Opción A: Pegado Rápido (Sheets)</h2>
-                <p class="text-sm text-gray-600 mb-4">Copia la fila (Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
-                <textarea id="boxRapida" rows="4" 
-                    class="w-full p-3 border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner" 
+            <div class="bg-slate-700/30 p-6 rounded-xl border border-slate-600/50 backdrop-blur-sm transition-colors hover:bg-slate-700/40">
+                <h2 class="font-semibold text-lg text-blue-400 mb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                    Pegado Rápido
+                </h2>
+                <p class="text-sm text-slate-400 mb-4">Copia la fila (Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
+                <textarea id="boxRapida" rows="3" 
+                    class="w-full p-4 bg-slate-900/80 border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-sm text-slate-200 placeholder-slate-600 transition-all resize-none shadow-inner" 
                     placeholder="Ej: Los Dos Caminos   Av Sucre   Calle 1 - Calle 2" 
                     oninput="buscar('rapida')"></textarea>
-                <button onclick="limpiarTodo()" class="mt-2 text-sm text-indigo-600 hover:underline font-bold">Limpiar todo</button>
+                <div class="flex justify-end mt-3">
+                    <button onclick="limpiarTodo()" class="text-sm text-slate-400 hover:text-rose-400 transition-colors font-medium">Limpiar campos</button>
+                </div>
             </div>
 
-            <!-- OPCIÓN 2: Búsqueda Manual / Parcial -->
-            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <h2 class="font-bold text-lg text-gray-700 mb-2">Opción B: Búsqueda Manual / Parcial</h2>
-                <p class="text-sm text-gray-600 mb-4">Escribe en uno o varios campos para buscar:</p>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                    <div>
-                        <label class="block text-gray-500 text-xs font-bold mb-1">Urbanización</label>
-                        <input type="text" id="boxUrb" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
+            <div class="bg-slate-700/30 p-6 rounded-xl border border-slate-600/50 backdrop-blur-sm transition-colors hover:bg-slate-700/40">
+                <h2 class="font-semibold text-lg text-slate-200 mb-2 flex items-center gap-2">
+                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                    Búsqueda Manual
+                </h2>
+                <p class="text-sm text-slate-400 mb-4">Escribe en uno o varios campos:</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div class="md:col-span-2">
+                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Urbanización</label>
+                        <input type="text" id="boxUrb" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
                     </div>
                     <div>
-                        <label class="block text-gray-500 text-xs font-bold mb-1">Calle Ppal</label>
-                        <input type="text" id="boxPpal" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
+                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Calle Ppal</label>
+                        <input type="text" id="boxPpal" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
                     </div>
                     <div>
-                        <label class="block text-gray-500 text-xs font-bold mb-1">Cruces (Inicio - Fin)</label>
-                        <input type="text" id="boxCruces" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
+                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Cruces</label>
+                        <input type="text" id="boxCruces" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" placeholder="Inicio - Fin" oninput="buscar('manual')">
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Contenedor del Contador -->
-        <div id="contador" class="mt-6 font-bold text-indigo-700 text-lg"></div>
+        <div id="contador" class="mt-8 font-medium text-slate-300 text-sm"></div>
 
-        <!-- Resultados con Scroll -->
-        <div id="resultados" class="mt-4 space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
+        <div id="resultados" class="mt-4 space-y-3 max-h-[450px] overflow-y-auto pr-2"></div>
     </div>
 
-    <!-- Cargamos la BD -->
     <script src="data.js"></script>
 
     <script>
-        // 1. LIMPIEZA DE TEXTO (Ignorar "Av", "Calle", Acentos, etc.)
         function limpiarTexto(texto) {
             if (!texto) return '';
             let t = texto.toUpperCase();
@@ -68,18 +98,14 @@
             return t;
         }
 
-        // 2. PREPARAR LA BASE DE DATOS INVISIBLE
         miData.forEach(item => {
             item.CRUCES_UNIDOS = `${item.CALLE_INICIO} - ${item.CALLE_FIN}`;
-            
             item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
             item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
             item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
-            
             item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
         });
 
-        // 3. CONFIGURACIÓN DEL BUSCADOR CON PESOS (Prioridad al combo completo)
         const opcionesFuzzy = {
             includeScore: true,
             threshold: 0.3,
@@ -93,19 +119,15 @@
         };
 
         const fuse = new Fuse(miData, opcionesFuzzy);
-
-        // 4. SISTEMA DE TEMPORIZADOR (Efecto Anti-Metralleta)
         let temporizador;
 
         function buscar(origen) {
             clearTimeout(temporizador);
-            // Espera 300ms a que el usuario deje de teclear antes de buscar
             temporizador = setTimeout(() => {
                 ejecutarBusqueda(origen);
-            }, 300);
+            }, 250); // Ligeramente más rápido para que se sienta más responsivo
         }
 
-        // 5. LA BÚSQUEDA REAL
         function ejecutarBusqueda(origen) {
             let textoBusqueda = '';
 
@@ -113,7 +135,6 @@
                 const textoCrudo = document.getElementById('boxRapida').value;
                 textoBusqueda = limpiarTexto(textoCrudo.replace(/\t/g, ' '));
                 
-                // Limpiamos las otras cajas para no confundir
                 document.getElementById('boxUrb').value = '';
                 document.getElementById('boxPpal').value = '';
                 document.getElementById('boxCruces').value = '';
@@ -123,8 +144,6 @@
                 const cruces = document.getElementById('boxCruces').value;
                 
                 textoBusqueda = limpiarTexto(`${urb} ${ppal} ${cruces}`);
-                
-                // Limpiamos la caja rápida
                 document.getElementById('boxRapida').value = '';
             }
             
@@ -138,20 +157,21 @@
             }
 
             const resultados = fuse.search(textoBusqueda);
-
             let html = '';
             
             if(resultados.length === 0) {
-                cajaContador.innerHTML = '0 coincidencias encontradas';
-                html = `<div class="p-4 bg-red-50 text-red-600 rounded border border-red-200 shadow-sm">No se encontró ninguna coincidencia en la base de datos.</div>`;
+                cajaContador.innerHTML = '';
+                html = `<div class="p-5 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20 shadow-sm flex items-center gap-3">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            No se encontró ninguna coincidencia en la base de datos.
+                        </div>`;
             } else {
-                // LÍMITE DE 200 RESULTADOS
                 const maxResultados = 200; 
                 const resultadosMostrar = resultados.slice(0, maxResultados);
                 
-                let mensajeContador = `Se encontraron ${resultados.length} coincidencias`;
+                let mensajeContador = `Se encontraron <span class="text-white">${resultados.length}</span> coincidencias`;
                 if(resultados.length > maxResultados) {
-                    mensajeContador += ` (Mostrando las ${maxResultados} más relevantes)`;
+                    mensajeContador += ` <span class="text-slate-500">(Mostrando las ${maxResultados} más relevantes)</span>`;
                 }
                 cajaContador.innerHTML = mensajeContador;
                 
@@ -160,17 +180,29 @@
                     const exactitud = Math.round((1 - res.score) * 100); 
                     
                     let badge = '';
-                    if (exactitud > 90) badge = `<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold border border-green-300">Coincidencia Muy Alta (${exactitud}%)</span>`;
-                    else if (exactitud > 70) badge = `<span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold border border-yellow-300">Coincidencia Parcial (${exactitud}%)</span>`;
-                    else badge = `<span class="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold border border-orange-300">Coincidencia Baja (${exactitud}%)</span>`;
+                    // Badges rediseñados para Dark Mode
+                    if (exactitud > 90) badge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Muy Alta (${exactitud}%)</span>`;
+                    else if (exactitud > 70) badge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Parcial (${exactitud}%)</span>`;
+                    else badge = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Baja (${exactitud}%)</span>`;
 
                     html += `
-                    <div class="p-4 border rounded shadow-sm bg-white hover:bg-gray-50 transition mb-3">
-                        <div class="mb-3">${badge}</div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Urbanización</span> <strong class="text-gray-800">${item.URBANIZACION}</strong></div>
-                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Calle Ppal</span> <strong class="text-gray-800">${item.CALLE_PPAL}</strong></div>
-                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Cruces</span> <strong class="text-gray-800 text-indigo-600">${item.CALLE_INICIO} - ${item.CALLE_FIN}</strong></div>
+                    <div class="p-5 rounded-xl bg-slate-700/40 border border-slate-600/50 hover:bg-slate-700/70 hover:border-slate-500/50 transition-all duration-200 shadow-sm group">
+                        <div class="mb-3 flex justify-between items-center">
+                            ${badge}
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                            <div>
+                                <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Urbanización</span> 
+                                <span class="text-slate-200 group-hover:text-white transition-colors">${item.URBANIZACION || '-'}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Calle Ppal</span> 
+                                <span class="text-slate-200 group-hover:text-white transition-colors">${item.CALLE_PPAL || '-'}</span>
+                            </div>
+                            <div>
+                                <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Cruces</span> 
+                                <span class="text-blue-400 font-medium group-hover:text-blue-300 transition-colors">${item.CALLE_INICIO} <span class="text-slate-500 font-normal mx-1">a</span> ${item.CALLE_FIN}</span>
+                            </div>
                         </div>
                     </div>
                     `;
@@ -179,7 +211,6 @@
             cajaResultados.innerHTML = html;
         }
 
-        // 6. FUNCIÓN PARA LIMPIAR TODO
         function limpiarTodo() {
             document.getElementById('boxRapida').value = '';
             document.getElementById('boxUrb').value = '';

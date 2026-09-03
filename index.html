@@ -88,149 +88,221 @@
     <script src="data.js"></script>
 
 <script>
-        function limpiarTexto(texto) {
-            if (!texto) return '';
-            let t = texto.toUpperCase();
-            t = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-            t = t.replace(/\b(AVENIDA|AV|CALLE|CLL|C|CARRERA|CRA|VEREDA|VD|VDA|PASAJE|PSJ|BLVD|BOULEVARD|AUTOPISTA|AUT|PROLONGACION|PROL|CALLEJON|TRANSVERSAL|TRV)\b\.?/g, '');
-            t = t.replace(/[-_,]/g, ' '); 
-            t = t.replace(/\s+/g, ' ').trim();
-            return t;
-        }
+        // ==================================================
+        // CONFIGURACIÓN
+        // ==================================================
+        const PALABRAS_VIA = /\b(AVENIDA|AV|CALLE|CLL|CARRERA|CRA|VEREDA|VD|VDA|PASAJE|PSJ|BLVD|BOULEVARD|AUTOPISTA|AUT|PROLONGACION|PROL|CALLEJON|TRANSVERSAL|TRV)\b\.?/g;
+        // Nota: se eliminó la "C" sola de la lista original porque, al ser una sola letra,
+        // puede recortar iniciales o texto legítimo que no signifique "Calle".
 
-        // --- NUEVA LÓGICA DE DEDUPLICACIÓN ---
-        const datosUnicos = [];
-        const firmasVistas = new Set();
+        const MAX_RESULTADOS = 200;
+        const DEBOUNCE_MS = 250;
 
-        miData.forEach(item => {
-            item.CRUCES_UNIDOS = `${item.CALLE_INICIO} - ${item.CALLE_FIN}`;
-            item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
-            item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
-            item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
-            
-            // Usamos esto como "Firma única"
-            item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
-
-            // Si esta combinación exacta no la hemos visto, la guardamos
-            if (!firmasVistas.has(item.CLEAN_COMBO)) {
-                firmasVistas.add(item.CLEAN_COMBO);
-                datosUnicos.push(item);
-            }
-        });
-        // -------------------------------------
-
-        const opcionesFuzzy = {
+        const OPCIONES_FUZZY = {
             includeScore: true,
             threshold: 0.3,
             ignoreLocation: true,
             keys: [
-                { name: 'CLEAN_COMBO', weight: 2.0 }, 
+                { name: 'CLEAN_COMBO', weight: 2.0 },
                 { name: 'CLEAN_URB', weight: 1.0 },
                 { name: 'CLEAN_PPAL', weight: 1.0 },
-                { name: 'CLEAN_CRUCES', weight: 1.2 } 
+                { name: 'CLEAN_CRUCES', weight: 1.2 }
             ]
         };
 
-        // NOTA: Ahora le pasamos 'datosUnicos' a Fuse, NO 'miData' original
-        const fuse = new Fuse(datosUnicos, opcionesFuzzy);
-        let temporizador;
+        // ==================================================
+        // NORMALIZACIÓN DE TEXTO
+        // ==================================================
+        function limpiarTexto(texto) {
+            if (!texto) return '';
+            let t = String(texto).toUpperCase();
+            t = t.normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // quita tildes
+            t = t.replace(PALABRAS_VIA, '');
+            t = t.replace(/[-_,]/g, ' ');
+            t = t.replace(/\s+/g, ' ').trim();
+            return t;
+        }
+
+        // Firma de cruce insensible al orden: "A - B" y "B - A" generan el mismo valor,
+        // evitando duplicados que antes se colaban por el orden de las columnas.
+        function normalizarCruce(inicio, fin) {
+            const a = limpiarTexto(inicio);
+            const b = limpiarTexto(fin);
+            return [a, b].sort().join(' ');
+        }
+
+        // ==================================================
+        // PREPARACIÓN DE DATOS (se ejecuta una sola vez al cargar)
+        // ==================================================
+        function prepararDatos(data) {
+            const unicos = [];
+            const firmasVistas = new Set();
+
+            data.forEach(item => {
+                const inicio = item.CALLE_INICIO || '';
+                const fin = item.CALLE_FIN || '';
+
+                item.CRUCES_UNIDOS = `${inicio} - ${fin}`;
+                item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
+                item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
+                item.CLEAN_CRUCES = normalizarCruce(inicio, fin);
+                item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
+
+                if (!firmasVistas.has(item.CLEAN_COMBO)) {
+                    firmasVistas.add(item.CLEAN_COMBO);
+                    unicos.push(item);
+                }
+            });
+
+            return unicos;
+        }
+
+        const datosUnicos = prepararDatos(miData);
+        const fuse = new Fuse(datosUnicos, OPCIONES_FUZZY);
+
+        // ==================================================
+        // REFERENCIAS AL DOM (cacheadas una sola vez)
+        // ==================================================
+        const dom = {
+            rapida: document.getElementById('boxRapida'),
+            urb: document.getElementById('boxUrb'),
+            ppal: document.getElementById('boxPpal'),
+            cruces: document.getElementById('boxCruces'),
+            resultados: document.getElementById('resultados'),
+            contador: document.getElementById('contador')
+        };
+
+        // ==================================================
+        // CONTROL DE BÚSQUEDA (debounce + despacho por modo)
+        // ==================================================
+        let temporizador = null;
 
         function buscar(origen) {
             clearTimeout(temporizador);
-            temporizador = setTimeout(() => {
-                ejecutarBusqueda(origen);
-            }, 250); 
+            temporizador = setTimeout(() => ejecutarBusqueda(origen), DEBOUNCE_MS);
+        }
+
+        function obtenerTextoBusqueda(origen) {
+            if (origen === 'rapida') {
+                const texto = limpiarTexto(dom.rapida.value.replace(/\t/g, ' '));
+                dom.urb.value = '';
+                dom.ppal.value = '';
+                dom.cruces.value = '';
+                return texto;
+            }
+
+            const texto = limpiarTexto(`${dom.urb.value} ${dom.ppal.value} ${dom.cruces.value}`);
+            dom.rapida.value = '';
+            return texto;
+        }
+
+        // Prioridad de coincidencia: 0 = igual exacta, 1 = contiene el texto en el mismo orden,
+        // 2 = aproximada (solo coincide por fuzzy matching). Menor número = más prioridad.
+        function clasificarCoincidencia(item, textoBusqueda) {
+            if (item.CLEAN_COMBO === textoBusqueda) return 0;
+            if (item.CLEAN_COMBO.includes(textoBusqueda)) return 1;
+            return 2;
+        }
+
+        function ordenarPorPrioridad(resultados, textoBusqueda) {
+            return resultados
+                .map(res => ({ ...res, _prioridad: clasificarCoincidencia(res.item, textoBusqueda) }))
+                .sort((a, b) => {
+                    if (a._prioridad !== b._prioridad) return a._prioridad - b._prioridad;
+                    return a.score - b.score; // dentro de la misma categoría, menor score = más relevante
+                });
         }
 
         function ejecutarBusqueda(origen) {
-            let textoBusqueda = '';
+            const textoBusqueda = obtenerTextoBusqueda(origen);
 
-            if (origen === 'rapida') {
-                const textoCrudo = document.getElementById('boxRapida').value;
-                textoBusqueda = limpiarTexto(textoCrudo.replace(/\t/g, ' '));
-                
-                document.getElementById('boxUrb').value = '';
-                document.getElementById('boxPpal').value = '';
-                document.getElementById('boxCruces').value = '';
-            } else {
-                const urb = document.getElementById('boxUrb').value;
-                const ppal = document.getElementById('boxPpal').value;
-                const cruces = document.getElementById('boxCruces').value;
-                
-                textoBusqueda = limpiarTexto(`${urb} ${ppal} ${cruces}`);
-                document.getElementById('boxRapida').value = '';
-            }
-            
-            const cajaResultados = document.getElementById('resultados');
-            const cajaContador = document.getElementById('contador');
-            
-            if(textoBusqueda === '') {
-                cajaResultados.innerHTML = '';
-                cajaContador.innerHTML = '';
+            if (textoBusqueda === '') {
+                dom.resultados.innerHTML = '';
+                dom.contador.innerHTML = '';
                 return;
             }
 
-            const resultados = fuse.search(textoBusqueda);
-            let html = '';
-            
-            if(resultados.length === 0) {
-                cajaContador.innerHTML = '';
-                html = `<div class="p-5 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20 shadow-sm flex items-center gap-3">
-                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                            No se encontró ninguna coincidencia en la base de datos.
-                        </div>`;
-            } else {
-                const maxResultados = 200; 
-                const resultadosMostrar = resultados.slice(0, maxResultados);
-                
-                let mensajeContador = `Se encontraron <span class="text-white">${resultados.length}</span> coincidencias`;
-                if(resultados.length > maxResultados) {
-                    mensajeContador += ` <span class="text-slate-500">(Mostrando las ${maxResultados} más relevantes)</span>`;
-                }
-                cajaContador.innerHTML = mensajeContador;
-                
-                resultadosMostrar.forEach(res => {
-                    const item = res.item;
-                    const exactitud = Math.round((1 - res.score) * 100); 
-                    
-                    let badge = '';
-                    if (exactitud > 90) badge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Muy Alta (${exactitud}%)</span>`;
-                    else if (exactitud > 70) badge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Parcial (${exactitud}%)</span>`;
-                    else badge = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Baja (${exactitud}%)</span>`;
+            let resultados = fuse.search(textoBusqueda);
+            resultados = ordenarPorPrioridad(resultados, textoBusqueda);
 
-                    html += `
-                    <div class="p-5 rounded-xl bg-slate-700/40 border border-slate-600/50 hover:bg-slate-700/70 hover:border-slate-500/50 transition-all duration-200 shadow-sm group">
-                        <div class="mb-3 flex justify-between items-center">
-                            ${badge}
-                        </div>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
-                            <div>
-                                <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Urbanización</span> 
-                                <span class="text-slate-200 group-hover:text-white transition-colors">${item.URBANIZACION || '-'}</span>
-                            </div>
-                            <div>
-                                <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Calle Ppal</span> 
-                                <span class="text-slate-200 group-hover:text-white transition-colors">${item.CALLE_PPAL || '-'}</span>
-                            </div>
-                            <div>
-                                <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Cruces</span> 
-                                <span class="text-blue-400 font-medium group-hover:text-blue-300 transition-colors">${item.CALLE_INICIO} <span class="text-slate-500 font-normal mx-1">a</span> ${item.CALLE_FIN}</span>
-                            </div>
-                        </div>
-                    </div>
-                    `;
-                });
+            if (resultados.length === 0) {
+                dom.contador.innerHTML = '';
+                dom.resultados.innerHTML = renderSinResultados();
+                return;
             }
-            cajaResultados.innerHTML = html;
+
+            const resultadosMostrar = resultados.slice(0, MAX_RESULTADOS);
+
+            let mensaje = `Se encontraron <span class="text-white">${resultados.length}</span> coincidencias`;
+            if (resultados.length > MAX_RESULTADOS) {
+                mensaje += ` <span class="text-slate-500">(Mostrando las ${MAX_RESULTADOS} más relevantes)</span>`;
+            }
+            dom.contador.innerHTML = mensaje;
+            dom.resultados.innerHTML = resultadosMostrar.map(renderResultado).join('');
         }
 
         function limpiarTodo() {
-            document.getElementById('boxRapida').value = '';
-            document.getElementById('boxUrb').value = '';
-            document.getElementById('boxPpal').value = '';
-            document.getElementById('boxCruces').value = '';
-            document.getElementById('resultados').innerHTML = '';
-            document.getElementById('contador').innerHTML = '';
+            dom.rapida.value = '';
+            dom.urb.value = '';
+            dom.ppal.value = '';
+            dom.cruces.value = '';
+            dom.resultados.innerHTML = '';
+            dom.contador.innerHTML = '';
+        }
+
+        // ==================================================
+        // RENDERIZADO (separado de la lógica de búsqueda)
+        // ==================================================
+        function escapeHTML(valor) {
+            if (valor === undefined || valor === null || valor === '') return '-';
+            return String(valor)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function badgeExactitud(exactitud) {
+            if (exactitud > 90) {
+                return `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Muy Alta (${exactitud}%)</span>`;
+            }
+            if (exactitud > 70) {
+                return `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Parcial (${exactitud}%)</span>`;
+            }
+            return `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Baja (${exactitud}%)</span>`;
+        }
+
+        function renderResultado(res) {
+            const item = res.item;
+            const exactitud = Math.round((1 - res.score) * 100);
+
+            return `
+            <div class="p-5 rounded-xl bg-slate-700/40 border border-slate-600/50 hover:bg-slate-700/70 hover:border-slate-500/50 transition-all duration-200 shadow-sm group">
+                <div class="mb-3 flex justify-between items-center">
+                    ${badgeExactitud(exactitud)}
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                    <div>
+                        <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Urbanización</span>
+                        <span class="text-slate-200 group-hover:text-white transition-colors">${escapeHTML(item.URBANIZACION)}</span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Calle Ppal</span>
+                        <span class="text-slate-200 group-hover:text-white transition-colors">${escapeHTML(item.CALLE_PPAL)}</span>
+                    </div>
+                    <div>
+                        <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Cruces</span>
+                        <span class="text-blue-400 font-medium group-hover:text-blue-300 transition-colors">${escapeHTML(item.CALLE_INICIO)} <span class="text-slate-500 font-normal mx-1">a</span> ${escapeHTML(item.CALLE_FIN)}</span>
+                    </div>
+                </div>
+            </div>`;
+        }
+
+        function renderSinResultados() {
+            return `<div class="p-5 bg-rose-500/10 text-rose-400 rounded-xl border border-rose-500/20 shadow-sm flex items-center gap-3">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        No se encontró ninguna coincidencia en la base de datos.
+                    </div>`;
         }
     </script>
 </body>

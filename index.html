@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Validador de Cruces Inteligente</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
+</head>
+<body class="bg-gray-100 p-8 font-sans">
+
+    <div class="max-w-5xl mx-auto bg-white p-8 rounded-lg shadow-lg">
+        <h1 class="text-3xl font-bold mb-2 text-indigo-800">Validador Geográfico</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
+            
+            <!-- OPCIÓN 1: Pegado Rápido -->
+            <div class="bg-indigo-50 p-6 rounded-lg border border-indigo-100">
+                <h2 class="font-bold text-lg text-indigo-700 mb-2">Opción A: Pegado Rápido (Sheets)</h2>
+                <p class="text-sm text-gray-600 mb-4">Copia la fila (Mcpo, Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
+                <textarea id="boxRapida" rows="4" 
+                    class="w-full p-3 border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner" 
+                    placeholder="Ej: Sucre   Los Dos Caminos   Av Sucre   Calle 1 - Calle 2" 
+                    oninput="buscar('rapida')"></textarea>
+                <button onclick="limpiarTodo()" class="mt-2 text-sm text-indigo-600 hover:underline">Limpiar todo</button>
+            </div>
+
+            <!-- OPCIÓN 2: Búsqueda Manual / Parcial -->
+            <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
+                <h2 class="font-bold text-lg text-gray-700 mb-2">Opción B: Búsqueda Manual / Parcial</h2>
+                <p class="text-sm text-gray-600 mb-4">Escribe en uno o varios campos para buscar:</p>
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div>
+                        <label class="block text-gray-500 text-xs font-bold mb-1">Municipio</label>
+                        <input type="text" id="boxMcpo" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-xs font-bold mb-1">Urbanización</label>
+                        <input type="text" id="boxUrb" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-xs font-bold mb-1">Calle Ppal</label>
+                        <input type="text" id="boxPpal" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
+                    </div>
+                    <div>
+                        <label class="block text-gray-500 text-xs font-bold mb-1">Cruces (Inicio - Fin)</label>
+                        <input type="text" id="boxCruces" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contenedor del Contador (NUEVO) -->
+        <div id="contador" class="mt-6 font-bold text-indigo-700 text-lg"></div>
+
+        <!-- Resultados con Scroll (NUEVO: max-h-[500px] y overflow-y-auto) -->
+        <div id="resultados" class="mt-4 space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
+    </div>
+
+    <!-- Cargamos la BD -->
+    <script src="data.js"></script>
+
+    <script>
+        function limpiarTexto(texto) {
+            if (!texto) return '';
+            let t = texto.toUpperCase();
+            t = t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+            // Añadimos CALLEJON, TRANSVERSAL, etc. Puedes agregar más aquí si lo necesitas
+            t = t.replace(/\b(AVENIDA|AV|CALLE|CLL|C|CARRERA|CRA|VEREDA|VD|VDA|PASAJE|PSJ|BLVD|BOULEVARD|AUTOPISTA|AUT|PROLONGACION|PROL|CALLEJON|TRANSVERSAL|TRV)\b\.?/g, '');
+            t = t.replace(/[-_,]/g, ' '); 
+            t = t.replace(/\s+/g, ' ').trim();
+            return t;
+        }
+
+        miData.forEach(item => {
+            item.CRUCES_UNIDOS = `${item.CALLE_INICIO} - ${item.CALLE_FIN}`;
+            
+            item.CLEAN_MCPO = limpiarTexto(item.NBR_MCPO);
+            item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
+            item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
+            item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
+            
+            item.CLEAN_COMBO = `${item.CLEAN_MCPO} ${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
+        });
+
+        const opcionesFuzzy = {
+            includeScore: true,
+            threshold: 0.3,
+            ignoreLocation: true,
+            keys: ['CLEAN_COMBO', 'CLEAN_MCPO', 'CLEAN_URB', 'CLEAN_PPAL', 'CLEAN_CRUCES']
+        };
+
+        const fuse = new Fuse(miData, opcionesFuzzy);
+
+        function buscar(origen) {
+            let textoBusqueda = '';
+
+            if (origen === 'rapida') {
+                const textoCrudo = document.getElementById('boxRapida').value;
+                textoBusqueda = limpiarTexto(textoCrudo.replace(/\t/g, ' '));
+                
+                document.getElementById('boxMcpo').value = '';
+                document.getElementById('boxUrb').value = '';
+                document.getElementById('boxPpal').value = '';
+                document.getElementById('boxCruces').value = '';
+            } else {
+                const mcpo = document.getElementById('boxMcpo').value;
+                const urb = document.getElementById('boxUrb').value;
+                const ppal = document.getElementById('boxPpal').value;
+                const cruces = document.getElementById('boxCruces').value;
+                
+                textoBusqueda = limpiarTexto(`${mcpo} ${urb} ${ppal} ${cruces}`);
+                
+                document.getElementById('boxRapida').value = '';
+            }
+            
+            const cajaResultados = document.getElementById('resultados');
+            const cajaContador = document.getElementById('contador');
+            
+            if(textoBusqueda === '') {
+                cajaResultados.innerHTML = '';
+                cajaContador.innerHTML = '';
+                return;
+            }
+
+            const resultados = fuse.search(textoBusqueda);
+
+            let html = '';
+            
+            if(resultados.length === 0) {
+                cajaContador.innerHTML = '0 coincidencias encontradas';
+                html = `<div class="p-4 bg-red-50 text-red-600 rounded border border-red-200">No se encontró ninguna coincidencia en la base de datos.</div>`;
+            } else {
+                // AUMENTAMOS EL LÍMITE A 200 RESULTADOS
+                const maxResultados = 200; 
+                const resultadosMostrar = resultados.slice(0, maxResultados);
+                
+                // Actualizamos el contador visual
+                let mensajeContador = `Se encontraron ${resultados.length} coincidencias`;
+                if(resultados.length > maxResultados) {
+                    mensajeContador += ` (Mostrando las ${maxResultados} más relevantes para no saturar el sistema)`;
+                }
+                cajaContador.innerHTML = mensajeContador;
+                
+                resultadosMostrar.forEach(res => {
+                    const item = res.item;
+                    const exactitud = Math.round((1 - res.score) * 100); 
+                    
+                    let badge = '';
+                    if (exactitud > 90) badge = `<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold border border-green-300">Coincidencia Muy Alta (${exactitud}%)</span>`;
+                    else if (exactitud > 70) badge = `<span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold border border-yellow-300">Coincidencia Parcial (${exactitud}%)</span>`;
+                    else badge = `<span class="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold border border-orange-300">Coincidencia Baja (${exactitud}%)</span>`;
+
+                    html += `
+                    <div class="p-4 border rounded shadow-sm bg-white hover:bg-gray-50 transition">
+                        <div class="mb-3">${badge}</div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Municipio</span> <strong class="text-gray-800">${item.NBR_MCPO}</strong></div>
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Urbanización</span> <strong class="text-gray-800">${item.URBANIZACION}</strong></div>
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Calle Ppal</span> <strong class="text-gray-800">${item.CALLE_PPAL}</strong></div>
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Cruces</span> <strong class="text-gray-800 text-indigo-600">${item.CALLE_INICIO} - ${item.CALLE_FIN}</strong></div>
+                        </div>
+                    </div>
+                    `;
+                });
+            }
+            cajaResultados.innerHTML = html;
+        }
+
+        function limpiarTodo() {
+            document.getElementById('boxRapida').value = '';
+            document.getElementById('boxMcpo').value = '';
+            document.getElementById('boxUrb').value = '';
+            document.getElementById('boxPpal').value = '';
+            document.getElementById('boxCruces').value = '';
+            document.getElementById('resultados').innerHTML = '';
+            document.getElementById('contador').innerHTML = '';
+        }
+    </script>
+</body>
+</html>

@@ -1,93 +1,4 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Validador de Cruces Inteligente</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/fuse.js/dist/fuse.js"></script>
-    <style>
-        /* Importamos Outfit como fallback visual de Google Sans */
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
-        
-        body {
-            /* Prioriza Google Sans/Product Sans, si no, usa Outfit */
-            font-family: 'Google Sans', 'Product Sans', 'Outfit', sans-serif;
-            background-color: #0f172a; /* slate-900 */
-            color: #e2e8f0; /* slate-200 */
-        }
-
-        /* Scrollbar personalizado para tema oscuro */
-        ::-webkit-scrollbar {
-            width: 8px;
-        }
-        ::-webkit-scrollbar-track {
-            background: #1e293b; /* slate-800 */
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb {
-            background: #475569; /* slate-600 */
-            border-radius: 4px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #64748b; /* slate-500 */
-        }
-    </style>
-</head>
-<body class="min-h-screen p-4 md:p-8 antialiased">
-
-    <div class="max-w-5xl mx-auto bg-slate-800 p-6 md:p-10 rounded-2xl shadow-2xl border border-slate-700/50">
-        <h1 class="text-3xl font-bold mb-1 text-white tracking-tight">Validador Geográfico</h1>
-        <p class="text-slate-400 text-sm mb-8">Búsqueda y cruce de datos inteligente</p>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            <div class="bg-slate-700/30 p-6 rounded-xl border border-slate-600/50 backdrop-blur-sm transition-colors hover:bg-slate-700/40">
-                <h2 class="font-semibold text-lg text-blue-400 mb-2 flex items-center gap-2">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
-                    Pegado Rápido
-                </h2>
-                <p class="text-sm text-slate-400 mb-4">Copia la fila (Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
-                <textarea id="boxRapida" rows="3" 
-                    class="w-full p-4 bg-slate-900/80 border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-sm text-slate-200 placeholder-slate-600 transition-all resize-none shadow-inner" 
-                    placeholder="Ej: Los Dos Caminos   Av Sucre   Calle 1 - Calle 2" 
-                    oninput="buscar('rapida')"></textarea>
-                <div class="flex justify-end mt-3">
-                    <button onclick="limpiarTodo()" class="text-sm text-slate-400 hover:text-rose-400 transition-colors font-medium">Limpiar campos</button>
-                </div>
-            </div>
-
-            <div class="bg-slate-700/30 p-6 rounded-xl border border-slate-600/50 backdrop-blur-sm transition-colors hover:bg-slate-700/40">
-                <h2 class="font-semibold text-lg text-slate-200 mb-2 flex items-center gap-2">
-                    <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-                    Búsqueda Manual
-                </h2>
-                <p class="text-sm text-slate-400 mb-4">Escribe en uno o varios campos:</p>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div class="md:col-span-2">
-                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Urbanización</label>
-                        <input type="text" id="boxUrb" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Calle Ppal</label>
-                        <input type="text" id="boxPpal" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
-                    </div>
-                    <div>
-                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Cruces</label>
-                        <input type="text" id="boxCruces" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" placeholder="Inicio - Fin" oninput="buscar('manual')">
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <div id="contador" class="mt-8 font-medium text-slate-300 text-sm"></div>
-
-        <div id="resultados" class="mt-4 space-y-3 max-h-[450px] overflow-y-auto pr-2"></div>
-    </div>
-
-    <script src="data.js"></script>
-
-    <script>
+<script>
         function limpiarTexto(texto) {
             if (!texto) return '';
             let t = texto.toUpperCase();
@@ -98,13 +9,26 @@
             return t;
         }
 
+        // --- NUEVA LÓGICA DE DEDUPLICACIÓN ---
+        const datosUnicos = [];
+        const firmasVistas = new Set();
+
         miData.forEach(item => {
             item.CRUCES_UNIDOS = `${item.CALLE_INICIO} - ${item.CALLE_FIN}`;
             item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
             item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
             item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
+            
+            // Usamos esto como "Firma única"
             item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
+
+            // Si esta combinación exacta no la hemos visto, la guardamos
+            if (!firmasVistas.has(item.CLEAN_COMBO)) {
+                firmasVistas.add(item.CLEAN_COMBO);
+                datosUnicos.push(item);
+            }
         });
+        // -------------------------------------
 
         const opcionesFuzzy = {
             includeScore: true,
@@ -118,14 +42,15 @@
             ]
         };
 
-        const fuse = new Fuse(miData, opcionesFuzzy);
+        // NOTA: Ahora le pasamos 'datosUnicos' a Fuse, NO 'miData' original
+        const fuse = new Fuse(datosUnicos, opcionesFuzzy);
         let temporizador;
 
         function buscar(origen) {
             clearTimeout(temporizador);
             temporizador = setTimeout(() => {
                 ejecutarBusqueda(origen);
-            }, 250); // Ligeramente más rápido para que se sienta más responsivo
+            }, 250); 
         }
 
         function ejecutarBusqueda(origen) {
@@ -180,7 +105,6 @@
                     const exactitud = Math.round((1 - res.score) * 100); 
                     
                     let badge = '';
-                    // Badges rediseñados para Dark Mode
                     if (exactitud > 90) badge = `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Muy Alta (${exactitud}%)</span>`;
                     else if (exactitud > 70) badge = `<span class="bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Parcial (${exactitud}%)</span>`;
                     else badge = `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Baja (${exactitud}%)</span>`;
@@ -220,5 +144,3 @@
             document.getElementById('contador').innerHTML = '';
         }
     </script>
-</body>
-</html>

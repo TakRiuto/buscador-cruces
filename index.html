@@ -85,6 +85,10 @@
         <div id="resultados" class="mt-4 space-y-3 max-h-[450px] overflow-y-auto pr-2"></div>
     </div>
 
+    <footer class="max-w-5xl mx-auto mt-6 pb-4 text-center">
+        <p class="text-xs text-slate-500 tracking-wide">Creado por <span class="text-slate-400 font-medium">Ing. Adrián León, Esp.</span></p>
+    </footer>
+
     <script src="data.js"></script>
 
 <script>
@@ -204,12 +208,26 @@
             return 2;
         }
 
+        // Desempate alfabético: Urbanización -> Calle Inicial -> Calle Final.
+        // Se usa cuando dos resultados tienen el mismo nivel de coincidencia (ej. varios al 100%).
+        function compararAlfabetico(itemA, itemB) {
+            const campos = ['URBANIZACION', 'CALLE_INICIO', 'CALLE_FIN'];
+            for (const campo of campos) {
+                const valA = (itemA[campo] || '').toString();
+                const valB = (itemB[campo] || '').toString();
+                const cmp = valA.localeCompare(valB, 'es', { sensitivity: 'base' });
+                if (cmp !== 0) return cmp;
+            }
+            return 0;
+        }
+
         function ordenarPorPrioridad(resultados, textoBusqueda) {
             return resultados
                 .map(res => ({ ...res, _prioridad: clasificarCoincidencia(res.item, textoBusqueda) }))
                 .sort((a, b) => {
                     if (a._prioridad !== b._prioridad) return a._prioridad - b._prioridad;
-                    return a.score - b.score; // dentro de la misma categoría, menor score = más relevante
+                    if (a.score !== b.score) return a.score - b.score; // menor score = más relevante
+                    return compararAlfabetico(a.item, b.item); // empate -> orden alfabético
                 });
         }
 

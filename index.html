@@ -83,12 +83,117 @@
             item.CLEAN_COMBO = `${item.CLEAN_MCPO} ${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
         });
 
+        // OPTIMIZACIÓN 2: PESOS (Darle más importancia al combo completo)
         const opcionesFuzzy = {
             includeScore: true,
             threshold: 0.3,
             ignoreLocation: true,
-            keys: ['CLEAN_COMBO', 'CLEAN_MCPO', 'CLEAN_URB', 'CLEAN_PPAL', 'CLEAN_CRUCES']
+            keys: [
+                { name: 'CLEAN_COMBO', weight: 2.0 }, // Vale el doble para la IA
+                { name: 'CLEAN_MCPO', weight: 1.0 },
+                { name: 'CLEAN_URB', weight: 1.0 },
+                { name: 'CLEAN_PPAL', weight: 1.0 },
+                { name: 'CLEAN_CRUCES', weight: 1.2 } // Los cruces importan un poco más
+            ]
         };
+
+        const fuse = new Fuse(miData, opcionesFuzzy);
+
+        // OPTIMIZACIÓN 1: TEMPORIZADOR (Debounce) para que no se congele al teclear rápido
+        let temporizador;
+
+        function buscar(origen) {
+            // Si el usuario sigue tecleando, cancelamos la búsqueda anterior
+            clearTimeout(temporizador);
+            
+            // Esperamos 300ms después de la última tecla para buscar
+            temporizador = setTimeout(() => {
+                ejecutarBusqueda(origen);
+            }, 300);
+        }
+
+        // Esta es la función que hace el trabajo pesado
+        function ejecutarBusqueda(origen) {
+            let textoBusqueda = '';
+
+            if (origen === 'rapida') {
+                const textoCrudo = document.getElementById('boxRapida').value;
+                textoBusqueda = limpiarTexto(textoCrudo.replace(/\t/g, ' '));
+                
+                document.getElementById('boxMcpo').value = '';
+                document.getElementById('boxUrb').value = '';
+                document.getElementById('boxPpal').value = '';
+                document.getElementById('boxCruces').value = '';
+            } else {
+                const mcpo = document.getElementById('boxMcpo').value;
+                const urb = document.getElementById('boxUrb').value;
+                const ppal = document.getElementById('boxPpal').value;
+                const cruces = document.getElementById('boxCruces').value;
+                
+                textoBusqueda = limpiarTexto(`${mcpo} ${urb} ${ppal} ${cruces}`);
+                document.getElementById('boxRapida').value = '';
+            }
+            
+            const cajaResultados = document.getElementById('resultados');
+            const cajaContador = document.getElementById('contador');
+            
+            if(textoBusqueda === '') {
+                cajaResultados.innerHTML = '';
+                cajaContador.innerHTML = '';
+                return;
+            }
+
+            const resultados = fuse.search(textoBusqueda);
+
+            let html = '';
+            
+            if(resultados.length === 0) {
+                cajaContador.innerHTML = '0 coincidencias encontradas';
+                html = `<div class="p-4 bg-red-50 text-red-600 rounded border border-red-200 shadow-sm">No se encontró ninguna coincidencia en la base de datos.</div>`;
+            } else {
+                const maxResultados = 200; 
+                const resultadosMostrar = resultados.slice(0, maxResultados);
+                
+                let mensajeContador = `Se encontraron ${resultados.length} coincidencias`;
+                if(resultados.length > maxResultados) {
+                    mensajeContador += ` (Mostrando las ${maxResultados} más relevantes para no saturar el sistema)`;
+                }
+                cajaContador.innerHTML = mensajeContador;
+                
+                resultadosMostrar.forEach(res => {
+                    const item = res.item;
+                    const exactitud = Math.round((1 - res.score) * 100); 
+                    
+                    let badge = '';
+                    if (exactitud > 90) badge = `<span class="bg-green-100 text-green-800 px-2 py-1 rounded text-xs font-bold border border-green-300">Coincidencia Muy Alta (${exactitud}%)</span>`;
+                    else if (exactitud > 70) badge = `<span class="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs font-bold border border-yellow-300">Coincidencia Parcial (${exactitud}%)</span>`;
+                    else badge = `<span class="bg-orange-100 text-orange-800 px-2 py-1 rounded text-xs font-bold border border-orange-300">Coincidencia Baja (${exactitud}%)</span>`;
+
+                    html += `
+                    <div class="p-4 border rounded shadow-sm bg-white hover:bg-gray-50 transition mb-3">
+                        <div class="mb-3">${badge}</div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Municipio</span> <strong class="text-gray-800">${item.NBR_MCPO}</strong></div>
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Urbanización</span> <strong class="text-gray-800">${item.URBANIZACION}</strong></div>
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Calle Ppal</span> <strong class="text-gray-800">${item.CALLE_PPAL}</strong></div>
+                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Cruces</span> <strong class="text-gray-800 text-indigo-600">${item.CALLE_INICIO} - ${item.CALLE_FIN}</strong></div>
+                        </div>
+                    </div>
+                    `;
+                });
+            }
+            cajaResultados.innerHTML = html;
+        }
+
+        function limpiarTodo() {
+            document.getElementById('boxRapida').value = '';
+            document.getElementById('boxMcpo').value = '';
+            document.getElementById('boxUrb').value = '';
+            document.getElementById('boxPpal').value = '';
+            document.getElementById('boxCruces').value = '';
+            document.getElementById('resultados').innerHTML = '';
+            document.getElementById('contador').innerHTML = '';
+        }
 
         const fuse = new Fuse(miData, opcionesFuzzy);
 

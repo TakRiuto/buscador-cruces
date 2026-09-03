@@ -17,10 +17,10 @@
             <!-- OPCIÓN 1: Pegado Rápido -->
             <div class="bg-indigo-50 p-6 rounded-lg border border-indigo-100">
                 <h2 class="font-bold text-lg text-indigo-700 mb-2">Opción A: Pegado Rápido (Sheets)</h2>
-                <p class="text-sm text-gray-600 mb-4">Copia la fila (Mcpo, Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
+                <p class="text-sm text-gray-600 mb-4">Copia la fila (Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
                 <textarea id="boxRapida" rows="4" 
                     class="w-full p-3 border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner" 
-                    placeholder="Ej: Sucre   Los Dos Caminos   Av Sucre   Calle 1 - Calle 2" 
+                    placeholder="Ej: Los Dos Caminos   Av Sucre   Calle 1 - Calle 2" 
                     oninput="buscar('rapida')"></textarea>
                 <button onclick="limpiarTodo()" class="mt-2 text-sm text-indigo-600 hover:underline font-bold">Limpiar todo</button>
             </div>
@@ -29,11 +29,7 @@
             <div class="bg-gray-50 p-6 rounded-lg border border-gray-200">
                 <h2 class="font-bold text-lg text-gray-700 mb-2">Opción B: Búsqueda Manual / Parcial</h2>
                 <p class="text-sm text-gray-600 mb-4">Escribe en uno o varios campos para buscar:</p>
-                <div class="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                        <label class="block text-gray-500 text-xs font-bold mb-1">Municipio</label>
-                        <input type="text" id="boxMcpo" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
-                    </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                     <div>
                         <label class="block text-gray-500 text-xs font-bold mb-1">Urbanización</label>
                         <input type="text" id="boxUrb" class="w-full p-2 border rounded focus:ring-2 focus:ring-indigo-400" oninput="buscar('manual')">
@@ -76,12 +72,11 @@
         miData.forEach(item => {
             item.CRUCES_UNIDOS = `${item.CALLE_INICIO} - ${item.CALLE_FIN}`;
             
-            item.CLEAN_MCPO = limpiarTexto(item.NBR_MCPO);
             item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
             item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
             item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
             
-            item.CLEAN_COMBO = `${item.CLEAN_MCPO} ${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
+            item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
         });
 
         // 3. CONFIGURACIÓN DEL BUSCADOR CON PESOS (Prioridad al combo completo)
@@ -91,7 +86,6 @@
             ignoreLocation: true,
             keys: [
                 { name: 'CLEAN_COMBO', weight: 2.0 }, 
-                { name: 'CLEAN_MCPO', weight: 1.0 },
                 { name: 'CLEAN_URB', weight: 1.0 },
                 { name: 'CLEAN_PPAL', weight: 1.0 },
                 { name: 'CLEAN_CRUCES', weight: 1.2 } 
@@ -120,17 +114,15 @@
                 textoBusqueda = limpiarTexto(textoCrudo.replace(/\t/g, ' '));
                 
                 // Limpiamos las otras cajas para no confundir
-                document.getElementById('boxMcpo').value = '';
                 document.getElementById('boxUrb').value = '';
                 document.getElementById('boxPpal').value = '';
                 document.getElementById('boxCruces').value = '';
             } else {
-                const mcpo = document.getElementById('boxMcpo').value;
                 const urb = document.getElementById('boxUrb').value;
                 const ppal = document.getElementById('boxPpal').value;
                 const cruces = document.getElementById('boxCruces').value;
                 
-                textoBusqueda = limpiarTexto(`${mcpo} ${urb} ${ppal} ${cruces}`);
+                textoBusqueda = limpiarTexto(`${urb} ${ppal} ${cruces}`);
                 
                 // Limpiamos la caja rápida
                 document.getElementById('boxRapida').value = '';
@@ -175,8 +167,7 @@
                     html += `
                     <div class="p-4 border rounded shadow-sm bg-white hover:bg-gray-50 transition mb-3">
                         <div class="mb-3">${badge}</div>
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                            <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Municipio</span> <strong class="text-gray-800">${item.NBR_MCPO}</strong></div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
                             <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Urbanización</span> <strong class="text-gray-800">${item.URBANIZACION}</strong></div>
                             <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Calle Ppal</span> <strong class="text-gray-800">${item.CALLE_PPAL}</strong></div>
                             <div><span class="block text-xs text-gray-400 uppercase tracking-wider">Cruces</span> <strong class="text-gray-800 text-indigo-600">${item.CALLE_INICIO} - ${item.CALLE_FIN}</strong></div>
@@ -191,7 +182,6 @@
         // 6. FUNCIÓN PARA LIMPIAR TODO
         function limpiarTodo() {
             document.getElementById('boxRapida').value = '';
-            document.getElementById('boxMcpo').value = '';
             document.getElementById('boxUrb').value = '';
             document.getElementById('boxPpal').value = '';
             document.getElementById('boxCruces').value = '';

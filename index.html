@@ -149,11 +149,17 @@
                 item.CRUCES_UNIDOS = `${inicio} - ${fin}`;
                 item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
                 item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
-                item.CLEAN_CRUCES = normalizarCruce(inicio, fin);
+                // Orden ORIGINAL (tal como está en los datos / como lo escribe el usuario).
+                // Este es el campo que se usa para buscar y para detectar coincidencias exactas.
+                item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
                 item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
 
-                if (!firmasVistas.has(item.CLEAN_COMBO)) {
-                    firmasVistas.add(item.CLEAN_COMBO);
+                // Firma SOLO para deduplicar: aquí sí ignoramos el orden de las calles,
+                // para no dejar pasar "AV 11 - AV 10" y "AV 10 - AV 11" como si fueran distintos.
+                const firmaDedup = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${normalizarCruce(inicio, fin)}`;
+
+                if (!firmasVistas.has(firmaDedup)) {
+                    firmasVistas.add(firmaDedup);
                     unicos.push(item);
                 }
             });

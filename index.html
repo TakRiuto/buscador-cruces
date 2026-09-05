@@ -135,6 +135,76 @@
             return [a, b].sort().join(' ');
         }
 
+        // Umbral mínimo de similitud (0 a 1) para considerar que dos textos son "la misma calle"
+        // a pesar de variaciones leves (abreviaturas distintas, errores de tipeo, etc.)
+        const UMBRAL_CALLE = 0.75;
+
+        // Distancia de Levenshtein: número mínimo de ediciones para convertir "a" en "b".
+        function distanciaLevenshtein(a, b) {
+            const m = a.length, n = b.length;
+            if (m === 0) return n;
+            if (n === 0) return m;
+
+            const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+            for (let i = 0; i <= m; i++) dp[i][0] = i;
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    const costo = a[i - 1] === b[j - 1] ? 0 : 1;
+                    dp[i][j] = Math.min(
+                        dp[i - 1][j] + 1,     // eliminación
+                        dp[i][j - 1] + 1,     // inserción
+                        dp[i - 1][j - 1] + costo // sustitución
+                    );
+                }
+            }
+            return dp[m][n];
+        }
+
+        // Similitud normalizada entre 0 (nada parecido) y 1 (idéntico).
+        function similitud(a, b) {
+            if (!a || !b) return 0;
+            if (a === b) return 1;
+            const maxLen = Math.max(a.length, b.length);
+            if (maxLen === 0) return 1;
+            return 1 - distanciaLevenshtein(a, b) / maxLen;
+        }
+
+        // Extrae "inicio" y "fin" de un texto crudo, separando por el ÚLTIMO guion
+        // (asume el formato "...algo... - Inicio - Fin" o "Inicio - Fin").
+        function extraerCruces(textoCrudo) {
+            if (!textoCrudo) return { inicio: '', fin: '' };
+            const match = textoCrudo.match(/^(.*)-(.*)$/);
+            if (!match) return { inicio: '', fin: '' };
+            return {
+                inicio: limpiarTexto(match[1]),
+                fin: limpiarTexto(match[2])
+            };
+        }
+
+        // Evalúa si un item tiene las MISMAS calles que la búsqueda pero en orden invertido,
+        // tolerando variaciones leves. Si ya coincide en el orden normal, no cuenta como "invertido".
+        function evaluarCrucesInvertidos(item, crucesQuery) {
+            const { inicio: inicioQuery, fin: finQuery } = crucesQuery;
+            if (!inicioQuery || !finQuery) return null;
+
+            const simNormalA = similitud(item.CLEAN_INICIO, inicioQuery);
+            const simNormalB = similitud(item.CLEAN_FIN, finQuery);
+            if (simNormalA >= UMBRAL_CALLE && simNormalB >= UMBRAL_CALLE) return null;
+
+            const simInvA = similitud(item.CLEAN_INICIO, finQuery);
+            const simInvB = similitud(item.CLEAN_FIN, inicioQuery);
+            if (simInvA >= UMBRAL_CALLE && simInvB >= UMBRAL_CALLE) {
+                const promedio = (simInvA + simInvB) / 2;
+                // 95-99%: muy alto, pero distinguible de una coincidencia exacta (100%)
+                const exactitud = Math.min(99, Math.round(95 + promedio * 4));
+                return { exactitud };
+            }
+
+            return null;
+        }
+
         // ==================================================
         // PREPARACIÓN DE DATOS (se ejecuta una sola vez al cargar)
         // ==================================================
@@ -153,6 +223,9 @@
                 // Este es el campo que se usa para buscar y para detectar coincidencias exactas.
                 item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
                 item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
+                // Calles individuales limpias, para poder comparar "misma calle en otra posición"
+                item.CLEAN_INICIO = limpiarTexto(inicio);
+                item.CLEAN_FIN = limpiarTexto(fin);
 
                 // Firma SOLO para deduplicar: aquí sí ignoramos el orden de las calles,
                 // para no dejar pasar "AV 11 - AV 10" y "AV 10 - AV 11" como si fueran distintos.
@@ -194,24 +267,29 @@
 
         function obtenerTextoBusqueda(origen) {
             if (origen === 'rapida') {
-                const texto = limpiarTexto(dom.rapida.value.replace(/\t/g, ' '));
+                const crudo = dom.rapida.value.replace(/\t/g, ' ');
+                const texto = limpiarTexto(crudo);
+                const crucesQuery = extraerCruces(crudo);
+
                 dom.urb.value = '';
                 dom.ppal.value = '';
                 dom.cruces.value = '';
-                return texto;
+                return { texto, crucesQuery };
             }
 
             const texto = limpiarTexto(`${dom.urb.value} ${dom.ppal.value} ${dom.cruces.value}`);
+            const crucesQuery = extraerCruces(dom.cruces.value);
+
             dom.rapida.value = '';
-            return texto;
+            return { texto, crucesQuery };
         }
 
-        // Prioridad de coincidencia: 0 = igual exacta, 1 = contiene el texto en el mismo orden,
-        // 2 = aproximada (solo coincide por fuzzy matching). Menor número = más prioridad.
+        // Coincidencia DIRECTA por texto: 0 = igual exacta, 1 = contiene el texto en el mismo orden.
+        // Devuelve null si no hay coincidencia directa (se evalúa después si es "cruce invertido" o aproximada).
         function clasificarCoincidencia(item, textoBusqueda) {
             if (item.CLEAN_COMBO === textoBusqueda) return 0;
             if (item.CLEAN_COMBO.includes(textoBusqueda)) return 1;
-            return 2;
+            return null;
         }
 
         // Desempate alfabético: Urbanización -> Calle Inicial -> Calle Final.
@@ -227,18 +305,36 @@
             return 0;
         }
 
-        function ordenarPorPrioridad(resultados, textoBusqueda) {
+        // Niveles de prioridad finales:
+        // 0 = coincidencia exacta total
+        // 1 = contiene el texto en el mismo orden
+        // 2 = mismas calles en el cruce, pero en orden invertido (tolerante a variaciones leves)
+        // 3 = aproximada (solo coincide por fuzzy matching)
+        function ordenarPorPrioridad(resultados, textoBusqueda, crucesQuery) {
             return resultados
-                .map(res => ({ ...res, _prioridad: clasificarCoincidencia(res.item, textoBusqueda) }))
+                .map(res => {
+                    const directa = clasificarCoincidencia(res.item, textoBusqueda);
+                    if (directa !== null) {
+                        return { ...res, _prioridad: directa, _exactitudForzada: null };
+                    }
+
+                    const invertido = evaluarCrucesInvertidos(res.item, crucesQuery);
+                    if (invertido) {
+                        return { ...res, _prioridad: 2, _exactitudForzada: invertido.exactitud };
+                    }
+
+                    return { ...res, _prioridad: 3, _exactitudForzada: null };
+                })
                 .sort((a, b) => {
                     if (a._prioridad !== b._prioridad) return a._prioridad - b._prioridad;
+                    if (a._prioridad === 2) return b._exactitudForzada - a._exactitudForzada; // mayor similitud primero
                     if (a.score !== b.score) return a.score - b.score; // menor score = más relevante
                     return compararAlfabetico(a.item, b.item); // empate -> orden alfabético
                 });
         }
 
         function ejecutarBusqueda(origen) {
-            const textoBusqueda = obtenerTextoBusqueda(origen);
+            const { texto: textoBusqueda, crucesQuery } = obtenerTextoBusqueda(origen);
 
             if (textoBusqueda === '') {
                 dom.resultados.innerHTML = '';
@@ -247,7 +343,7 @@
             }
 
             let resultados = fuse.search(textoBusqueda);
-            resultados = ordenarPorPrioridad(resultados, textoBusqueda);
+            resultados = ordenarPorPrioridad(resultados, textoBusqueda, crucesQuery);
 
             if (resultados.length === 0) {
                 dom.contador.innerHTML = '';
@@ -296,14 +392,22 @@
             return `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Baja (${exactitud}%)</span>`;
         }
 
+        function badgeCruceInvertido() {
+            return `<span class="bg-sky-500/10 text-sky-400 border border-sky-500/20 px-2.5 py-1 rounded-md text-xs font-semibold tracking-wide">Cruce invertido</span>`;
+        }
+
         function renderResultado(res) {
             const item = res.item;
-            const exactitud = Math.round((1 - res.score) * 100);
+            const esCruceInvertido = res._prioridad === 2;
+            const exactitud = esCruceInvertido
+                ? res._exactitudForzada
+                : Math.round((1 - res.score) * 100);
 
             return `
             <div class="p-5 rounded-xl bg-slate-700/40 border border-slate-600/50 hover:bg-slate-700/70 hover:border-slate-500/50 transition-all duration-200 shadow-sm group">
-                <div class="mb-3 flex justify-between items-center">
+                <div class="mb-3 flex justify-between items-center gap-2">
                     ${badgeExactitud(exactitud)}
+                    ${esCruceInvertido ? badgeCruceInvertido() : ''}
                 </div>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
                     <div>

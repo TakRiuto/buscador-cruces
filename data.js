@@ -1,4 +1,4 @@
-[
+const miData = [
   {
     "NBR_URB": "11 DE ABRIL",
     "NBR_MCPO": "Girardot",

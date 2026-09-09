@@ -47,10 +47,10 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
                     Pegado Rápido
                 </h2>
-                <p class="text-sm text-slate-400 mb-4">Copia la fila (Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
+                <p class="text-sm text-slate-400 mb-4">Copia la fila (Municipio, Urb, Ppal, Inicio-Fin) y pégala aquí:</p>
                 <textarea id="boxRapida" rows="3" 
                     class="w-full p-4 bg-slate-900/80 border border-slate-600 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 text-sm text-slate-200 placeholder-slate-600 transition-all resize-none shadow-inner" 
-                    placeholder="Ej: Los Dos Caminos   Av Sucre   Calle 1 - Calle 2" 
+                    placeholder="Ej: Girardot   11 de Abril   Pasaje El Valle   Vereda Del Valle - Calle 11 de Abril" 
                     oninput="buscar('rapida')"></textarea>
                 <div class="flex justify-end mt-3">
                     <button onclick="limpiarTodo()" class="text-sm text-slate-400 hover:text-rose-400 transition-colors font-medium">Limpiar campos</button>
@@ -64,17 +64,25 @@
                 </h2>
                 <p class="text-sm text-slate-400 mb-4">Escribe en uno o varios campos:</p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                    <div class="md:col-span-2">
+                    <div>
+                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Municipio</label>
+                        <input type="text" id="boxMcpo" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
+                    </div>
+                    <div>
                         <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Urbanización</label>
                         <input type="text" id="boxUrb" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
                     </div>
-                    <div>
+                    <div class="md:col-span-2">
                         <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Calle Ppal</label>
                         <input type="text" id="boxPpal" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
                     </div>
                     <div>
-                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Cruces</label>
-                        <input type="text" id="boxCruces" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" placeholder="Inicio - Fin" oninput="buscar('manual')">
+                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Calle Inicio</label>
+                        <input type="text" id="boxInicio" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
+                    </div>
+                    <div>
+                        <label class="block text-slate-400 text-xs font-semibold mb-1.5 uppercase tracking-wide">Calle Fin</label>
+                        <input type="text" id="boxFin" class="w-full p-3 bg-slate-900/80 border border-slate-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50 text-slate-200 transition-all" oninput="buscar('manual')">
                     </div>
                 </div>
             </div>
@@ -108,6 +116,7 @@
             ignoreLocation: true,
             keys: [
                 { name: 'CLEAN_COMBO', weight: 2.0 },
+                { name: 'CLEAN_MCPO', weight: 1.0 },
                 { name: 'CLEAN_URB', weight: 1.0 },
                 { name: 'CLEAN_PPAL', weight: 1.0 },
                 { name: 'CLEAN_CRUCES', weight: 1.2 }
@@ -213,23 +222,24 @@
             const firmasVistas = new Set();
 
             data.forEach(item => {
-                const inicio = item.CALLE_INICIO || '';
+                const inicio = item.CALLE_INI || '';
                 const fin = item.CALLE_FIN || '';
 
                 item.CRUCES_UNIDOS = `${inicio} - ${fin}`;
-                item.CLEAN_URB = limpiarTexto(item.URBANIZACION);
+                item.CLEAN_MCPO = limpiarTexto(item.NBR_MCPO);
+                item.CLEAN_URB = limpiarTexto(item.NBR_URB);
                 item.CLEAN_PPAL = limpiarTexto(item.CALLE_PPAL);
                 // Orden ORIGINAL (tal como está en los datos / como lo escribe el usuario).
                 // Este es el campo que se usa para buscar y para detectar coincidencias exactas.
                 item.CLEAN_CRUCES = limpiarTexto(item.CRUCES_UNIDOS);
-                item.CLEAN_COMBO = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
+                item.CLEAN_COMBO = `${item.CLEAN_MCPO} ${item.CLEAN_URB} ${item.CLEAN_PPAL} ${item.CLEAN_CRUCES}`;
                 // Calles individuales limpias, para poder comparar "misma calle en otra posición"
                 item.CLEAN_INICIO = limpiarTexto(inicio);
                 item.CLEAN_FIN = limpiarTexto(fin);
 
                 // Firma SOLO para deduplicar: aquí sí ignoramos el orden de las calles,
                 // para no dejar pasar "AV 11 - AV 10" y "AV 10 - AV 11" como si fueran distintos.
-                const firmaDedup = `${item.CLEAN_URB} ${item.CLEAN_PPAL} ${normalizarCruce(inicio, fin)}`;
+                const firmaDedup = `${item.CLEAN_MCPO} ${item.CLEAN_URB} ${item.CLEAN_PPAL} ${normalizarCruce(inicio, fin)}`;
 
                 if (!firmasVistas.has(firmaDedup)) {
                     firmasVistas.add(firmaDedup);
@@ -248,9 +258,11 @@
         // ==================================================
         const dom = {
             rapida: document.getElementById('boxRapida'),
+            mcpo: document.getElementById('boxMcpo'),
             urb: document.getElementById('boxUrb'),
             ppal: document.getElementById('boxPpal'),
-            cruces: document.getElementById('boxCruces'),
+            inicio: document.getElementById('boxInicio'),
+            fin: document.getElementById('boxFin'),
             resultados: document.getElementById('resultados'),
             contador: document.getElementById('contador')
         };
@@ -271,14 +283,20 @@
                 const texto = limpiarTexto(crudo);
                 const crucesQuery = extraerCruces(crudo);
 
+                dom.mcpo.value = '';
                 dom.urb.value = '';
                 dom.ppal.value = '';
-                dom.cruces.value = '';
+                dom.inicio.value = '';
+                dom.fin.value = '';
                 return { texto, crucesQuery };
             }
 
-            const texto = limpiarTexto(`${dom.urb.value} ${dom.ppal.value} ${dom.cruces.value}`);
-            const crucesQuery = extraerCruces(dom.cruces.value);
+            const texto = limpiarTexto(`${dom.mcpo.value} ${dom.urb.value} ${dom.ppal.value} ${dom.inicio.value} ${dom.fin.value}`);
+            // Al ser inputs separados, no hace falta parsear un guion: ya tenemos inicio/fin directos.
+            const crucesQuery = {
+                inicio: limpiarTexto(dom.inicio.value),
+                fin: limpiarTexto(dom.fin.value)
+            };
 
             dom.rapida.value = '';
             return { texto, crucesQuery };
@@ -295,7 +313,7 @@
         // Desempate alfabético: Urbanización -> Calle Inicial -> Calle Final.
         // Se usa cuando dos resultados tienen el mismo nivel de coincidencia (ej. varios al 100%).
         function compararAlfabetico(itemA, itemB) {
-            const campos = ['URBANIZACION', 'CALLE_INICIO', 'CALLE_FIN'];
+            const campos = ['NBR_URB', 'CALLE_INI', 'CALLE_FIN'];
             for (const campo of campos) {
                 const valA = (itemA[campo] || '').toString();
                 const valB = (itemB[campo] || '').toString();
@@ -363,9 +381,11 @@
 
         function limpiarTodo() {
             dom.rapida.value = '';
+            dom.mcpo.value = '';
             dom.urb.value = '';
             dom.ppal.value = '';
-            dom.cruces.value = '';
+            dom.inicio.value = '';
+            dom.fin.value = '';
             dom.resultados.innerHTML = '';
             dom.contador.innerHTML = '';
         }
@@ -409,10 +429,14 @@
                     ${badgeExactitud(exactitud)}
                     ${esCruceInvertido ? badgeCruceInvertido() : ''}
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 text-sm">
+                    <div>
+                        <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Municipio</span>
+                        <span class="text-slate-200 group-hover:text-white transition-colors">${escapeHTML(item.NBR_MCPO)}</span>
+                    </div>
                     <div>
                         <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Urbanización</span>
-                        <span class="text-slate-200 group-hover:text-white transition-colors">${escapeHTML(item.URBANIZACION)}</span>
+                        <span class="text-slate-200 group-hover:text-white transition-colors">${escapeHTML(item.NBR_URB)}</span>
                     </div>
                     <div>
                         <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Calle Ppal</span>
@@ -420,7 +444,7 @@
                     </div>
                     <div>
                         <span class="block text-[11px] text-slate-500 uppercase tracking-widest font-semibold mb-1">Cruces</span>
-                        <span class="text-blue-400 font-medium group-hover:text-blue-300 transition-colors">${escapeHTML(item.CALLE_INICIO)} <span class="text-slate-500 font-normal mx-1">a</span> ${escapeHTML(item.CALLE_FIN)}</span>
+                        <span class="text-blue-400 font-medium group-hover:text-blue-300 transition-colors">${escapeHTML(item.CALLE_INI)} <span class="text-slate-500 font-normal mx-1">a</span> ${escapeHTML(item.CALLE_FIN)}</span>
                     </div>
                 </div>
             </div>`;
